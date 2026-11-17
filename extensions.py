@@ -1,9 +1,11 @@
 
 from dataclasses import dataclass
 
+from sympy import Symbol
+
 from raisonnement import est_coherent, consequence
 from defauts import Theorie
-from formules import lire_formule, afficher_formule
+from formules import lire_formule, afficher_formule, variables
 
 
 @dataclass
@@ -162,6 +164,34 @@ def credule(extensions, formule):
         consequence(e.base, formule)
         for e in extensions
     )
+
+
+# Littéraux (P ou ¬P) qui sont des conséquences d'une extension
+def litteraux(extension):
+    base = extension.base
+
+    if not est_coherent(base):
+        return []
+
+    resultat = []
+
+    for nom in variables(base):
+        symbole = Symbol(nom)
+
+        if consequence(base, symbole):
+            resultat.append(afficher_formule(symbole))
+        elif consequence(base, ~symbole):
+            resultat.append(afficher_formule(~symbole))
+
+    return resultat
+
+
+# Numéros (à partir de 1) des extensions dont la formule est conséquence
+def extensions_contenant(extensions, formule):
+    return [
+        i for i, e in enumerate(extensions, start=1)
+        if consequence(e.base, formule)
+    ]
 
 
 # Afficher les résultats
