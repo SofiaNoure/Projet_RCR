@@ -57,9 +57,13 @@ STRUCTURE DU PROJET
   extensions.py     calcul des extensions, consequences sceptiques et credules
   interface.py      interface graphique (aucun calcul logique)
   main.py           point d'entree
-  test_interface.py test automatique de l'interface
+  test_raisonnement.py  tests de raisonnement.py
+  test_extensions.py    tests de extensions.py
+  test_interface.py     test automatique de l'interface
 
 TESTS
 -----
-  python extensions.py       tests des extensions (exemples du cours)
-  python test_interface.py   test de l'interface (ouvre brievement une fenetre)
+  python test_raisonnement.py   tests de la coherence et de la consequence
+  python test_extensions.py     tests des extensions, sceptique, credule
+  python test_interface.py      test de l'interface (ouvre brievement une fenetre)
+Chaque test affiche PASS ou FAIL.
