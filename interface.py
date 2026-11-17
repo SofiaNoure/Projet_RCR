@@ -10,12 +10,11 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
-from sympy import Symbol
-
-from formules import lire_formule, afficher_formule, variables
-from raisonnement import est_coherent, consequence, sous_ensemble_incoherent
+from formules import lire_formule, afficher_formule
+from raisonnement import est_coherent, sous_ensemble_incoherent
 from defauts import Theorie, avertissements_defaut
-from extensions import generer_extensions, sceptique, credule
+from extensions import (generer_extensions, sceptique, credule,
+                        litteraux, extensions_contenant)
 
 
 # ----------------------------------------------------------------------
@@ -360,19 +359,6 @@ class Application(tk.Tk):
         finally:
             self.config(cursor="")
 
-    def _litteraux(self, base):
-        """Littéraux (P ou ¬P) qui sont des conséquences de la base."""
-        if not est_coherent(base):
-            return ["(base incohérente)"]
-        resultat = []
-        for nom in variables(base):
-            symbole = Symbol(nom)
-            if consequence(base, symbole):
-                resultat.append(nom)
-            elif consequence(base, ~symbole):
-                resultat.append("¬" + nom)
-        return resultat
-
     def _noms_defauts(self, numeros):
         return ", ".join(f"d{n}" for n in numeros) if numeros else "aucun"
 
@@ -394,10 +380,10 @@ class Application(tk.Tk):
 
         for i, ext in enumerate(extensions, start=1):
             base = ", ".join(afficher_formule(f) for f in ext.base)
-            litteraux = ", ".join(self._litteraux(ext.base)) or "aucun"
+            lits = ", ".join(litteraux(ext)) or "aucun"
             self.ecrire(f"\nE{i} ", "titre")
             self.ecrire(f"= Th({{{base}}})\n")
-            self.ecrire(f"    littéraux : {litteraux}\n")
+            self.ecrire(f"    littéraux : {lits}\n")
             self.ecrire("    défauts appliqués : "
                         f"{self._noms_defauts(ext.defauts_appliques)}\n")
 
@@ -427,8 +413,7 @@ class Application(tk.Tk):
         self.ecrire(f"{phi_texte} est une conséquence {nom} ? ", "titre")
         self.ecrire("OUI\n" if reponse else "NON\n", "ok" if reponse else "ko")
 
-        contenant = [i for i, e in enumerate(extensions, start=1)
-                     if consequence(e.base, phi)]
+        contenant = extensions_contenant(extensions, phi)
         if contenant:
             liste = ", ".join(f"E{i}" for i in contenant)
             self.ecrire(f"Extensions contenant {phi_texte} : {liste} "
