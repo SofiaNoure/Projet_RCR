@@ -20,6 +20,7 @@ from extensions import (
     applicable, generer_extensions, sceptique, credule,
     litteraux, extensions_contenant,
     extensions_vers_donnees, extensions_depuis_donnees, equivalentes,
+    expliquer_extension,
 )
 
 echecs = 0
@@ -227,6 +228,65 @@ for mauvais, libelle in [
         verifier(False, "données invalides : " + libelle)
     except ValueError:
         verifier(True, "données invalides refusées : " + libelle)
+
+print("--- Explication des extensions (étape 6) ---")
+T = theorie(["A"], ["A : B / C", "A : ~C / ~B"])
+E = generer_extensions(T)
+ex1 = expliquer_extension(T, E[0], "E1")
+ex2 = expliquer_extension(T, E[1], "E2")
+verifier(len(ex1) == 2 and [x.numero for x in ex1] == [1, 2],
+         "une explication par défaut")
+verifier(ex1[0].applique and not ex1[1].applique, "E1 : d1 appliqué, d2 non")
+verifier(not ex2[0].applique and ex2[1].applique, "E2 : d1 non, d2 appliqué")
+verifier("contredite" in ex1[1].raisons[0] and "¬C" in ex1[1].raisons[0]
+         and "E1 démontre C" in ex1[1].raisons[0],
+         "E1 : d2 bloqué car la justification ¬C est contredite par C")
+verifier("contredite" in ex2[0].raisons[0] and "E2 démontre ¬B" in ex2[0].raisons[0],
+         "E2 : d1 bloqué car la justification B est contredite par ¬B")
+verifier(any("prérequis A démontré" in r for r in ex1[0].raisons),
+         "défaut appliqué : prérequis démontré")
+verifier(any("conséquent C est ajouté" in r for r in ex1[0].raisons),
+         "défaut appliqué : conséquent ajouté")
+verifier([x.applique for x in ex1] == [n in E[0].defauts_appliques for n in (1, 2)],
+         "cohérent avec defauts_appliques")
+
+T = theorie(["o", "p -> o", "p -> ~v"], ["o : v / v", "a : c / b"])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(ex[0].applique and not ex[1].applique, "énoncé : d1 appliqué, d2 non")
+verifier("prérequis a non démontré" in ex[1].raisons[0],
+         "énoncé : d2 non appliqué car le prérequis a n'est pas démontré")
+
+T = theorie(["Pingouin(tweety)", "Pingouin(tweety) -> Oiseau(tweety)",
+             "Pingouin(tweety) -> ~Vole(tweety)"],
+            ["Oiseau(tweety) : Vole(tweety) / Vole(tweety)"])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(not ex[0].applique and "contredite" in ex[0].raisons[0],
+         "pingouin : la justification Vole(tweety) est contredite")
+
+T = theorie([], [": A & ~A / B"])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(not ex[0].applique and "incohérente" in ex[0].raisons[0],
+         "justification incohérente signalée")
+
+T = theorie(["A"], ["B : C / D"])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(not ex[0].applique and any("prérequis B non démontré" in r for r in ex[0].raisons),
+         "prérequis non démontré signalé")
+
+T = theorie(["~B"], ["A : B / C"])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(len(ex[0].raisons) == 2, "prérequis ET justification : deux raisons")
+
+T = theorie(["A"], [": B / A"])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(ex[0].applique and any("pas de prérequis" in r for r in ex[0].raisons),
+         "défaut sans prérequis")
+verifier(any("déjà conséquence de W" in r for r in ex[0].raisons),
+         "conséquent déjà dans W signalé")
+
+T = theorie(["A"], [])
+ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
+verifier(ex == [], "aucun défaut : aucune explication")
 
 print("--- Limite du nombre de défauts ---")
 T = theorie([], [f": P{i} / Q{i}" for i in range(13)])

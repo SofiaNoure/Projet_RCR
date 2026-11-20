@@ -15,7 +15,8 @@ from raisonnement import est_coherent, sous_ensemble_incoherent
 from defauts import Theorie, avertissements_defaut
 from extensions import (generer_extensions, sceptique, credule,
                         litteraux, extensions_contenant,
-                        extensions_vers_donnees, extensions_depuis_donnees)
+                        extensions_vers_donnees, extensions_depuis_donnees,
+                        expliquer_extension)
 
 
 # ----------------------------------------------------------------------
@@ -212,6 +213,10 @@ class Application(tk.Tk):
         ttk.Button(barre, text="Crédule ?", style="Action.TButton",
                    command=self.tester_credule).pack(side="left", padx=2)
 
+        # Étape 6 (créativité) : explication des extensions
+        ttk.Button(barre, text="Expliquer", style="Action.TButton",
+                   command=self.expliquer).pack(side="left", padx=(14, 2))
+
     def _creer_zone_resultats(self):
         cadre = ttk.LabelFrame(self, text=" RÉSULTATS ", padding=6)
         cadre.pack(fill="both", expand=True)
@@ -406,6 +411,39 @@ class Application(tk.Tk):
             self.ecrire(f"    littéraux : {lits}\n")
             self.ecrire("    défauts appliqués : "
                         f"{self._noms_defauts(ext.defauts_appliques)}\n")
+
+    def expliquer(self):
+        """Étape 6 : pour chaque extension, pourquoi chaque défaut est
+        appliqué ou non."""
+        extensions = self._extensions_courantes()
+        if extensions is None:
+            return
+
+        self.effacer_resultats()
+        if not extensions:
+            self.ecrire("Aucune extension : il n'y a rien à expliquer.\n",
+                        "ko")
+            return
+
+        self.ecrire("Explication des extensions\n", "titre")
+        for i, ext in enumerate(extensions, start=1):
+            nom = f"E{i}"
+            base = ", ".join(afficher_formule(f) for f in ext.base)
+            self.ecrire(f"\n{nom} ", "titre")
+            self.ecrire(f"= Th({{{base}}})\n")
+
+            if not self.theorie.D:
+                self.ecrire("   (aucun défaut dans la théorie)\n", "gris")
+            for ex in expliquer_extension(self.theorie, ext, nom):
+                signe, tag = ("✔", "ok") if ex.applique else ("✘", "ko")
+                etat = "appliqué" if ex.applique else "non appliqué"
+                self.ecrire(f"  {signe} ", tag)
+                self.ecrire(f"d{ex.numero} : {texte_defaut(ex.defaut)}"
+                            f"   ({etat})\n")
+                for raison in ex.raisons:
+                    self.ecrire(f"       - {raison}\n", "gris")
+
+        self.resultats.see("1.0")  # on revient au début de l'explication
 
     def _tester_consequence(self, fonction, nom):
         """Code commun aux boutons Sceptique ? et Crédule ?"""

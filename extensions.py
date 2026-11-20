@@ -1,7 +1,7 @@
 
 from dataclasses import dataclass
 
-from sympy import Symbol
+from sympy import Symbol, Not
 
 from raisonnement import est_coherent, consequence
 from defauts import Theorie, formule_en_texte
@@ -164,6 +164,78 @@ def credule(extensions, formule):
         consequence(e.base, formule)
         for e in extensions
     )
+
+
+# Explication du comportement d'un défaut vis-à-vis d'une extension
+@dataclass
+class ExplicationDefaut:
+    numero: int       # numéro du défaut (à partir de 1)
+    defaut: object    # le défaut lui-même
+    applique: bool    # True si le défaut est appliqué dans l'extension
+    raisons: list     # phrases qui expliquent la décision
+
+
+# Expliquer, pour chaque défaut de la théorie, pourquoi il est appliqué
+# ou non dans une extension. `nom` est le nom de l'extension (ex. "E1").
+# Un défaut est appliqué quand son prérequis est démontré et que ses
+# justifications sont cohérentes avec l'extension.
+def expliquer_extension(theorie, extension, nom="E"):
+    base = extension.base
+    explications = []
+
+    for numero, defaut in enumerate(theorie.D, start=1):
+        prerequis = afficher_formule(defaut.prerequis)
+        sans_prerequis = prerequis == "Vrai"
+        consequent = afficher_formule(defaut.consequent)
+        raisons = []
+
+        if numero in extension.defauts_appliques:
+            if sans_prerequis:
+                raisons.append("pas de prérequis")
+            else:
+                raisons.append(f"prérequis {prerequis} démontré dans {nom}")
+
+            justifs = ", ".join(
+                afficher_formule(j) for j in defaut.justifications
+            )
+            raisons.append(f"justification(s) {justifs} cohérente(s) "
+                           f"avec {nom}")
+
+            if consequence(theorie.W, defaut.consequent):
+                raisons.append(f"le conséquent {consequent} était déjà "
+                               f"conséquence de W")
+            else:
+                raisons.append(f"le conséquent {consequent} est ajouté "
+                               f"à {nom}")
+
+            explications.append(
+                ExplicationDefaut(numero, defaut, True, raisons)
+            )
+            continue
+
+        # Défaut non appliqué : on cherche toutes les raisons
+        if not consequence(base, defaut.prerequis):
+            raisons.append(f"prérequis {prerequis} non démontré dans {nom}")
+
+        for j in defaut.justifications:
+            texte = afficher_formule(j)
+
+            if not est_coherent([j]):
+                raisons.append(f"justification {texte} incohérente : "
+                               f"ce défaut ne peut jamais être appliqué")
+            elif not est_coherent(base + [j]):
+                contraire = afficher_formule(Not(j))
+                raisons.append(f"justification {texte} contredite : "
+                               f"{nom} démontre {contraire}")
+
+        if not raisons:
+            raisons.append("conditions d'application non remplies")
+
+        explications.append(
+            ExplicationDefaut(numero, defaut, False, raisons)
+        )
+
+    return explications
 
 
 # Convertir des extensions en données simples (listes et textes),

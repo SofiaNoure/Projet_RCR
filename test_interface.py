@@ -120,6 +120,23 @@ json.dump({"W": ["A"], "D": [], "extensions": "oups"}, open(chemin, "w", encodin
 msgs.clear(); app.ouvrir()
 ok(msgs and msgs[-1][0] == "showerror", "extensions de mauvais type : fichier refusé")
 
+# 7 ter. étape 6 : bouton Expliquer
+app.charger_exemple("Cours - slide 18"); app.expliquer()
+ok("Explication des extensions" in res() and "E1" in res() and "E2" in res(), "Expliquer : titre et extensions")
+ok("d1 : A : B / C   (appliqué)" in res() and "(non appliqué)" in res(), "Expliquer : défauts appliqués / non appliqués")
+ok("contredite" in res() and "E1 démontre C" in res(), "Expliquer : raison du blocage")
+app.charger_exemple("Exemple de l'énoncé"); app.expliquer()
+ok("prérequis a non démontré" in res(), "Expliquer : prérequis non démontré")
+app.charger_exemple("Aucune extension"); app.expliquer()
+ok("rien à expliquer" in res(), "Expliquer : aucune extension géré")
+app.nouveau(); app.expliquer()
+ok("Explication" in res() and "aucun défaut" in res(), "Expliquer : théorie vide")
+vrai_generer = interface.generer_extensions
+app.charger_exemple("Cours - slide 18"); app.generer()
+interface.generer_extensions = lambda t: 1 / 0
+app.expliquer(); ok("appliqué" in res(), "Expliquer : utilise les extensions déjà calculées")
+interface.generer_extensions = vrai_generer
+
 # 8. tous les exemples se chargent
 for nom in interface.EXEMPLES:
     app.charger_exemple(nom); app.generer()
