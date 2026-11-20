@@ -6,7 +6,13 @@ monde W et les défauts D, de vérifier la cohérence de W et de calculer
 les extensions d'une théorie. Elle teste si une formule est une
 conséquence sceptique ou crédule. Les boutons « Enregistrer » et
 « Ouvrir » permettent de sauvegarder et de recharger une théorie au
-format JSON. Le menu « Exemples » propose des théories prêtes à tester.
+format JSON. Le fichier contient W, D et les extensions : elles sont
+réaffichées à l'ouverture et effacées dès que W ou D est modifié.
+Le menu « Exemples » propose des théories prêtes à tester.
+
+Fonctionnalité supplémentaire (étape 6) : le bouton « Expliquer »
+détaille, pour chaque extension, pourquoi chaque défaut est appliqué
+ou non (prérequis non démontré, justification contredite…).
 
 Prérequis et installation
 -------------------------
@@ -65,6 +71,10 @@ Premier essai dans l'application
    E2 = Th({A, ¬B}) avec d2.
 4. Saisir C dans le champ φ. Cliquer sur « Sceptique ? » (NON), puis
    sur « Crédule ? » (OUI). Seule E1 contient C.
+5. Cliquer sur « Expliquer ». Pour E1, d1 est appliqué (prérequis A
+   démontré, justification B cohérente) et d2 ne l'est pas (sa
+   justification ¬C est contredite, car E1 démontre C). C'est l'inverse
+   pour E2.
 
 Pour la saisie au clavier, utiliser ~ (non), & (et), | (ou),
 -> (implique), <-> (équivaut), true et false. Le prérequis d'un défaut
