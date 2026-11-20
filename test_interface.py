@@ -78,6 +78,48 @@ ok(len(app.theorie.W) == 1 and len(app.theorie.D) == 2, "JSON aller-retour")
 open(chemin, "w").write("{pas du json"); msgs.clear(); app.ouvrir()
 ok(msgs and msgs[-1][0] == "showerror", "JSON corrompu géré")
 
+# 7 bis. étape 4 : les extensions sont enregistrées puis retrouvées
+import json
+app.charger_exemple("Cours - slide 18"); app.generer(); app.enregistrer()
+contenu = json.load(open(chemin, encoding="utf-8"))
+ok(len(contenu.get("extensions", [])) == 2, "le fichier JSON contient les 2 extensions")
+app.nouveau(); app.ouvrir()
+ok(app.extensions is not None and len(app.extensions) == 2, "extensions retrouvées au chargement")
+ok("Extensions retrouvées" in res() and "2 extensions" in res(), "extensions réaffichées au chargement")
+vrai_generer = interface.generer_extensions
+interface.generer_extensions = lambda t: 1 / 0     # tout recalcul ferait planter
+app.entree_phi.insert(0, "C"); app.tester_credule()
+ok("OUI" in res(), "crédule utilise les extensions chargées (sans recalcul)")
+app.tester_sceptique(); ok("NON" in res(), "sceptique utilise les extensions chargées")
+interface.generer_extensions = vrai_generer
+app.entree_phi.delete(0, "end")
+app.entree_formule.insert(0, "Z"); app.ajouter_formule()
+ok(app.extensions is None, "ajout d'une formule : extensions invalidées")
+app.generer(); app.liste_d.selection_set(0); app.supprimer_defaut()
+ok(app.extensions is None, "suppression d'un défaut : extensions invalidées")
+app.generer(); app.charger_exemple("Cours - slide 21")
+ok(app.extensions is None, "changement d'exemple : extensions invalidées")
+
+# enregistrer sans avoir cliqué sur Générer : les extensions sont calculées
+app.charger_exemple("Cours - slide 18"); app.enregistrer()
+ok(len(json.load(open(chemin, encoding="utf-8")).get("extensions", [])) == 2,
+   "enregistrer sans générer : extensions calculées et enregistrées")
+
+# ancien fichier (sans extensions) toujours lisible
+json.dump({"W": ["A"], "D": ["A : B / C"]}, open(chemin, "w", encoding="utf-8"))
+app.ouvrir()
+ok(len(app.theorie.D) == 1 and app.extensions is None and "ne contient pas" in res(),
+   "fichier sans extensions : W et D chargés, message clair")
+
+# extensions invalides dans le fichier : W et D chargés, erreur signalée
+json.dump({"W": ["A"], "D": [], "extensions": [{"base": "x"}]}, open(chemin, "w", encoding="utf-8"))
+msgs.clear(); app.ouvrir()
+ok(msgs and msgs[-1][0] == "showerror" and len(app.theorie.W) == 1 and app.extensions is None,
+   "extensions invalides : erreur affichée, W et D chargés")
+json.dump({"W": ["A"], "D": [], "extensions": "oups"}, open(chemin, "w", encoding="utf-8"))
+msgs.clear(); app.ouvrir()
+ok(msgs and msgs[-1][0] == "showerror", "extensions de mauvais type : fichier refusé")
+
 # 8. tous les exemples se chargent
 for nom in interface.EXEMPLES:
     app.charger_exemple(nom); app.generer()

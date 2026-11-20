@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from sympy import Symbol
 
 from raisonnement import est_coherent, consequence
-from defauts import Theorie
+from defauts import Theorie, formule_en_texte
 from formules import lire_formule, afficher_formule, variables
 
 
@@ -164,6 +164,42 @@ def credule(extensions, formule):
         consequence(e.base, formule)
         for e in extensions
     )
+
+
+# Convertir des extensions en données simples (listes et textes),
+# pour les enregistrer dans le fichier JSON de la théorie
+def extensions_vers_donnees(extensions):
+    return [
+        {
+            "base": [formule_en_texte(f) for f in e.base],
+            "defauts_appliques": list(e.defauts_appliques),
+        }
+        for e in extensions
+    ]
+
+
+# Reconstruire les extensions à partir des données d'un fichier JSON.
+# Lève une ValueError si les données sont invalides.
+def extensions_depuis_donnees(donnees):
+    resultat = []
+
+    for element in donnees:
+        if (
+            not isinstance(element, dict)
+            or not isinstance(element.get("base"), list)
+            or not isinstance(element.get("defauts_appliques"), list)
+        ):
+            raise ValueError("Extension invalide dans le fichier.")
+
+        if not all(isinstance(n, int) for n in element["defauts_appliques"]):
+            raise ValueError("Défauts appliqués invalides dans le fichier.")
+
+        resultat.append(Extension(
+            [lire_formule(texte) for texte in element["base"]],
+            list(element["defauts_appliques"]),
+        ))
+
+    return resultat
 
 
 # Littéraux (P ou ¬P) qui sont des conséquences d'une extension

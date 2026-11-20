@@ -12,9 +12,14 @@ import sys
 from defauts import Theorie
 from formules import lire_formule
 from raisonnement import consequence
+import json
+import os
+import tempfile
+
 from extensions import (
     applicable, generer_extensions, sceptique, credule,
     litteraux, extensions_contenant,
+    extensions_vers_donnees, extensions_depuis_donnees, equivalentes,
 )
 
 echecs = 0
@@ -177,6 +182,51 @@ T = theorie(["A"], ["A : B / C", "D : B / C", "A : ~A / C"])
 verifier(applicable(T.D[0], T.W), "A : B / C applicable")
 verifier(not applicable(T.D[1], T.W), "D : B / C : prérequis non démontré")
 verifier(not applicable(T.D[2], T.W), "A : ¬A / C : justification incohérente")
+
+print("--- Sauvegarde et chargement des extensions (étape 4) ---")
+T = theorie(["A"], ["A : B / C", "A : ~C / ~B"])
+E = generer_extensions(T)
+donnees = extensions_vers_donnees(E)
+verifier(len(donnees) == 2 and donnees[0]["defauts_appliques"] == [1],
+         "conversion en données : 2 extensions, d1 pour E1")
+json.dumps(donnees)   # doit être sérialisable en JSON
+E2 = extensions_depuis_donnees(donnees)
+verifier(len(E2) == 2 and all(
+    equivalentes(a.base, b.base) and a.defauts_appliques == b.defauts_appliques
+    for a, b in zip(E, E2)), "aller-retour : mêmes extensions")
+verifier(credule(E2, f("C")) and not sceptique(E2, f("C")),
+         "extensions rechargées : C crédule, non sceptique")
+
+chemin = os.path.join(tempfile.mkdtemp(), "theorie.json")
+T.enregistrer(chemin, donnees)
+rechargee = Theorie.charger(chemin)
+verifier(len(rechargee.W) == 1 and len(rechargee.D) == 2,
+         "fichier : W et D retrouvés")
+E3 = extensions_depuis_donnees(rechargee.extensions_sauvegardees)
+verifier(len(E3) == 2 and E3[1].defauts_appliques == [2],
+         "fichier : extensions retrouvées")
+
+T.enregistrer(chemin)                      # sans extensions
+verifier(Theorie.charger(chemin).extensions_sauvegardees is None,
+         "fichier sans extensions : None")
+
+E0 = generer_extensions(theorie([], [": A / ~A"]))
+T0 = theorie([], [": A / ~A"])
+T0.enregistrer(chemin, extensions_vers_donnees(E0))
+verifier(Theorie.charger(chemin).extensions_sauvegardees == [],
+         "aucune extension : liste vide enregistrée et retrouvée")
+
+for mauvais, libelle in [
+        ([{"base": "x", "defauts_appliques": []}], "base de mauvais type"),
+        ([{"base": ["A"]}], "clé défauts_appliques absente"),
+        ([{"base": ["A"], "defauts_appliques": ["x"]}], "numéro de défaut invalide"),
+        (["texte"], "élément qui n'est pas un dictionnaire"),
+        ([{"base": ["A &"], "defauts_appliques": []}], "formule incorrecte")]:
+    try:
+        extensions_depuis_donnees(mauvais)
+        verifier(False, "données invalides : " + libelle)
+    except ValueError:
+        verifier(True, "données invalides refusées : " + libelle)
 
 print("--- Limite du nombre de défauts ---")
 T = theorie([], [f": P{i} / Q{i}" for i in range(13)])

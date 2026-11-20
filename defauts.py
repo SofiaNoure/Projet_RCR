@@ -124,6 +124,10 @@ class Theorie:
     W: list = field(default_factory=list)
     D: list = field(default_factory=list)
 
+    # Extensions lues dans un fichier (liste de dictionnaires) ou None.
+    # Elles sont reconverties en objets Extension par extensions.py.
+    extensions_sauvegardees: list = None
+
     def ajouter_formule(self, texte):
         formule = lire_formule(texte)
         self.W.append(formule)
@@ -134,12 +138,18 @@ class Theorie:
         self.D.append(defaut)
         return defaut
 
-    # Sauvegarder la théorie dans un fichier JSON
-    def enregistrer(self, chemin):
+    # Sauvegarder la théorie dans un fichier JSON.
+    # `extensions` (facultatif) : extensions déjà converties en données
+    # par extensions.extensions_vers_donnees ; elles sont enregistrées
+    # avec W et D pour pouvoir être retrouvées au chargement.
+    def enregistrer(self, chemin, extensions=None):
         donnees = {
             "W": [formule_en_texte(f) for f in self.W],
             "D": [str(d) for d in self.D]
         }
+
+        if extensions is not None:
+            donnees["extensions"] = extensions
 
         with open(chemin, "w", encoding="utf-8") as fichier:
             json.dump(
@@ -160,7 +170,13 @@ class Theorie:
         ):
             raise ValueError("Fichier de théorie invalide.")
 
+        extensions = donnees.get("extensions")
+
+        if extensions is not None and not isinstance(extensions, list):
+            raise ValueError("Fichier de théorie invalide (extensions).")
+
         theorie = cls()
+        theorie.extensions_sauvegardees = extensions
 
         for texte in donnees["W"]:
             theorie.ajouter_formule(texte)

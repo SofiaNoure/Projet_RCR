@@ -14,7 +14,8 @@ from formules import lire_formule, afficher_formule
 from raisonnement import est_coherent, sous_ensemble_incoherent
 from defauts import Theorie, avertissements_defaut
 from extensions import (generer_extensions, sceptique, credule,
-                        litteraux, extensions_contenant)
+                        litteraux, extensions_contenant,
+                        extensions_vers_donnees, extensions_depuis_donnees)
 
 
 # ----------------------------------------------------------------------
@@ -74,6 +75,9 @@ class Application(tk.Tk):
 
         # Seul état de l'application : la théorie en cours d'édition
         self.theorie = Theorie()
+        # Extensions calculées ou rechargées ; None si elles sont à calculer.
+        # Elles sont remises à None dès que W ou D change.
+        self.extensions = None
 
         self._creer_style()
         self._creer_barre_haut()
@@ -243,6 +247,11 @@ class Application(tk.Tk):
         for i, d in enumerate(self.theorie.D, start=1):
             self.liste_d.insert("end", f"d{i} : {texte_defaut(d)}")
 
+    def _theorie_modifiee(self):
+        """Appelée quand W ou D change : les extensions ne sont plus valides."""
+        self.extensions = None
+        self.rafraichir()
+
     def effacer_resultats(self):
         self.resultats.configure(state="normal")
         self.resultats.delete("1.0", "end")
@@ -281,13 +290,13 @@ class Application(tk.Tk):
             self.erreur("Formule incorrecte", str(e))
             return
         self.entree_formule.delete(0, "end")
-        self.rafraichir()
+        self._theorie_modifiee()
 
     def supprimer_formule(self):
         i = self._indice_selection(self.liste_w, "une formule")
         if i is not None:
             del self.theorie.W[i]
-            self.rafraichir()
+            self._theorie_modifiee()
 
     def verifier_coherence(self):
         self.rafraichir()  # enlève les anciens surlignages
@@ -336,13 +345,13 @@ class Application(tk.Tk):
 
         for entree in (self.entree_pre, self.entree_just, self.entree_cons):
             entree.delete(0, "end")
-        self.rafraichir()
+        self._theorie_modifiee()
 
     def supprimer_defaut(self):
         i = self._indice_selection(self.liste_d, "un défaut")
         if i is not None:
             del self.theorie.D[i]
-            self.rafraichir()
+            self._theorie_modifiee()
 
     # ------------------------------------------------------------------
     # Extensions, conséquences sceptiques et crédules
@@ -359,6 +368,12 @@ class Application(tk.Tk):
         finally:
             self.config(cursor="")
 
+    def _extensions_courantes(self):
+        """Extensions déjà connues, sinon on les calcule (None si erreur)."""
+        if self.extensions is None:
+            self.extensions = self._calculer_extensions()
+        return self.extensions
+
     def _noms_defauts(self, numeros):
         return ", ".join(f"d{n}" for n in numeros) if numeros else "aucun"
 
@@ -368,7 +383,12 @@ class Application(tk.Tk):
         if extensions is None:
             return
 
+        self.extensions = extensions
         self.effacer_resultats()
+        self.afficher_extensions(extensions)
+
+    def afficher_extensions(self, extensions):
+        """Affiche le nombre d'extensions puis chacune d'elles."""
         if not extensions:
             self.ecrire("Aucune extension.\n", "ko")
             self.ecrire("Cette théorie des défauts n'a pas d'extension.\n",
@@ -396,7 +416,7 @@ class Application(tk.Tk):
             self.erreur("Formule φ incorrecte", str(e))
             return
 
-        extensions = self._calculer_extensions()
+        extensions = self._extensions_courantes()
         if extensions is None:
             return
 
@@ -438,7 +458,7 @@ class Application(tk.Tk):
             return
         self.theorie = Theorie()
         self.effacer_resultats()
-        self.rafraichir()
+        self._theorie_modifiee()
 
     def ouvrir(self):
         chemin = filedialog.askopenfilename(
@@ -455,9 +475,25 @@ class Application(tk.Tk):
             self.erreur("Erreur de lecture", str(e))
             return
         self.effacer_resultats()
-        self.rafraichir()
+        self._theorie_modifiee()
         self.ecrire(f"Théorie chargée : {len(self.theorie.W)} formule(s), "
                     f"{len(self.theorie.D)} défaut(s).\n", "gris")
+
+        # Extensions enregistrées dans le fichier : on les retrouve
+        if self.theorie.extensions_sauvegardees is not None:
+            try:
+                self.extensions = extensions_depuis_donnees(
+                    self.theorie.extensions_sauvegardees)
+            except ValueError as e:
+                self.erreur("Extensions invalides",
+                            f"{e}\nW et D ont été chargés, "
+                            "mais pas les extensions.")
+                return
+            self.ecrire("Extensions retrouvées dans le fichier :\n\n", "gris")
+            self.afficher_extensions(self.extensions)
+        else:
+            self.ecrire("Le fichier ne contient pas d'extensions "
+                        "(cliquez sur « Générer les extensions »).\n", "gris")
 
     def enregistrer(self):
         chemin = filedialog.asksaveasfilename(
@@ -465,13 +501,23 @@ class Application(tk.Tk):
             filetypes=[("Théorie JSON", "*.json")])
         if not chemin:
             return
+        # Les extensions sont enregistrées avec W et D (calculées si besoin)
+        extensions = self._extensions_courantes()
+        donnees = (extensions_vers_donnees(extensions)
+                   if extensions is not None else None)
         try:
-            self.theorie.enregistrer(chemin)
+            self.theorie.enregistrer(chemin, donnees)
         except OSError as e:
             self.erreur("Erreur d'écriture", str(e))
             return
         self.effacer_resultats()
         self.ecrire(f"Théorie enregistrée dans {chemin}\n", "gris")
+        if donnees is None:
+            self.ecrire("Les extensions n'ont pas pu être calculées : "
+                        "elles ne sont pas enregistrées.\n", "gris")
+        else:
+            self.ecrire(f"{len(donnees)} extension(s) enregistrée(s).\n",
+                        "gris")
 
     def charger_exemple(self, nom):
         formules, defauts = EXEMPLES[nom]
@@ -486,5 +532,5 @@ class Application(tk.Tk):
             return
         self.theorie = theorie
         self.effacer_resultats()
-        self.rafraichir()
+        self._theorie_modifiee()
         self.ecrire(f"Exemple chargé : {nom}\n", "gris")
