@@ -10,6 +10,10 @@ format JSON. Le fichier contient W, D et les extensions : elles sont
 réaffichées à l'ouverture et effacées dès que W ou D est modifié.
 Le menu « Exemples » propose des théories prêtes à tester.
 
+Le calcul des extensions n’impose aucune limite fixe au nombre de défauts.
+Toutefois, certaines théories comportant de nombreux choix contradictoires
+peuvent entraîner une exploration exponentielle et prendre beaucoup de temps.
+
 Fonctionnalité supplémentaire (étape 6) : le bouton « Expliquer »
 détaille, pour chaque extension, pourquoi chaque défaut est appliqué
 ou non (prérequis non démontré, justification contredite…).
