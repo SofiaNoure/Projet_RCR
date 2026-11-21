@@ -6,13 +6,18 @@ modules (formules, raisonnement, defauts, extensions) et affiche
 leurs résultats.
 """
 
+# Le fichier JSON est lu/écrit par les modules ; Tkinter gère la fenêtre et ses dialogues.
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 
+# Les formules sont analysées et formatées hors de l'interface.
 from formules import lire_formule, afficher_formule
+# Les contrôles logiques sont délégués à raisonnement.py.
 from raisonnement import est_coherent, sous_ensemble_incoherent
+# Theorie conserve les connaissances W et les défauts D.
 from defauts import Theorie, avertissements_defaut
+# Le moteur des extensions et les requêtes sceptiques/crédules restent indépendants de Tkinter.
 from extensions import (generer_extensions, sceptique, credule,
                         litteraux, extensions_contenant,
                         extensions_vers_donnees, extensions_depuis_donnees,
@@ -22,6 +27,7 @@ from extensions import (generer_extensions, sceptique, credule,
 # ----------------------------------------------------------------------
 # Exemples prédéfinis : nom -> (formules de W, défauts de D)
 # ----------------------------------------------------------------------
+# Chaque exemple contient deux listes de textes : W et D, converties lors du chargement.
 EXEMPLES = {
     "Exemple de l'énoncé": (
         ["o", "p -> o", "p -> ~v"],
@@ -57,6 +63,7 @@ EXEMPLES = {
 }
 
 
+# Cette fonction construit seulement une représentation lisible du défaut pour la Listbox.
 def texte_defaut(defaut):
     """Écrit un défaut sous la forme « prérequis : justifs / conséquent »."""
     prerequis = "" if afficher_formule(defaut.prerequis) == "Vrai" \
@@ -65,9 +72,11 @@ def texte_defaut(defaut):
     return f"{prerequis} : {justifs} / {afficher_formule(defaut.consequent)}"
 
 
+# Application hérite de la fenêtre principale Tkinter et réagit aux clics utilisateur.
 class Application(tk.Tk):
     """Fenêtre principale : saisie de la théorie (W, D) et résultats."""
 
+    # Initialiser la fenêtre, l'état de la théorie et les zones d'affichage.
     def __init__(self):
         super().__init__()
         self.title("Logique des défauts - Extensions de Reiter")
@@ -80,6 +89,7 @@ class Application(tk.Tk):
         # Elles sont remises à None dès que W ou D change.
         self.extensions = None
 
+        # Les méthodes suivantes construisent les différentes zones de la fenêtre.
         self._creer_style()
         self._creer_barre_haut()
         self._creer_zone_saisie()
@@ -90,6 +100,7 @@ class Application(tk.Tk):
     # ------------------------------------------------------------------
     # Construction de la fenêtre
     # ------------------------------------------------------------------
+    # Choisir un thème ttk disponible et harmoniser les polices et marges.
     def _creer_style(self):
         style = ttk.Style(self)
         if "clam" in style.theme_names():
@@ -99,6 +110,7 @@ class Application(tk.Tk):
                         padding=6)
         self.configure(padx=8, pady=8)
 
+    # command= relie chaque bouton à une méthode exécutée lors d'un clic.
     def _creer_barre_haut(self):
         """Boutons Nouveau / Ouvrir / Enregistrer / Exemples."""
         barre = ttk.Frame(self)
@@ -111,6 +123,7 @@ class Application(tk.Tk):
         ttk.Button(barre, text="Enregistrer",
                    command=self.enregistrer).pack(side="left", padx=2)
 
+        # La syntaxe lambda n=nom mémorise le bon nom pour chaque entrée du menu.
         menu_exemples = tk.Menu(self, tearoff=0)
         for nom in EXEMPLES:
             menu_exemples.add_command(
@@ -118,6 +131,7 @@ class Application(tk.Tk):
         bouton = ttk.Menubutton(barre, text="Exemples ▾", menu=menu_exemples)
         bouton.pack(side="left", padx=2)
 
+    # Deux colonnes : grid positionne les widgets, pack positionne le conteneur.
     def _creer_zone_saisie(self):
         """Deux colonnes : monde W (gauche) et défauts D (droite)."""
         zone = ttk.Frame(self)
@@ -135,6 +149,7 @@ class Application(tk.Tk):
         ttk.Label(cadre_w, text="Formule :").grid(row=0, column=0, sticky="w")
         self.entree_formule = ttk.Entry(cadre_w)
         self.entree_formule.grid(row=0, column=1, sticky="ew", padx=4, pady=2)
+        # La touche Entrée déclenche l'ajout d'une seule formule, comme le bouton.
         self.entree_formule.bind("<Return>", lambda e: self.ajouter_formule())
 
         boutons_w = ttk.Frame(cadre_w)
@@ -156,6 +171,7 @@ class Application(tk.Tk):
         cadre_d.columnconfigure(1, weight=1)
         cadre_d.rowconfigure(5, weight=1)
 
+        # Une boucle crée les trois champs du défaut sans répéter le même code.
         champs = [("Prérequis :", "entree_pre"),
                   ("Justifications :", "entree_just"),
                   ("Conséquent :", "entree_cons")]
@@ -165,6 +181,7 @@ class Application(tk.Tk):
             entree = ttk.Entry(cadre_d)
             entree.grid(row=ligne, column=1, sticky="ew", padx=4, pady=2)
             entree.bind("<Return>", lambda e: self.ajouter_defaut())
+            # setattr mémorise les champs sous self.entree_pre, self.entree_just et self.entree_cons.
             setattr(self, attribut, entree)
 
         ttk.Label(cadre_d, text="(justifications séparées par des virgules, "
@@ -181,6 +198,7 @@ class Application(tk.Tk):
 
         self.liste_d = self._creer_liste(cadre_d, row=5)
 
+    # Fabriquer une liste réutilisable avec une barre de défilement verticale.
     def _creer_liste(self, parent, row):
         """Crée une Listbox avec barre de défilement dans `parent`."""
         cadre = ttk.Frame(parent)
@@ -196,6 +214,7 @@ class Application(tk.Tk):
         barre.grid(row=0, column=1, sticky="ns")
         return liste
 
+    # φ est la formule que l'utilisateur veut tester sur les extensions.
     def _creer_barre_actions(self):
         """Boutons de calcul + champ φ pour les conséquences."""
         barre = ttk.Frame(self)
@@ -217,6 +236,7 @@ class Application(tk.Tk):
         ttk.Button(barre, text="Expliquer", style="Action.TButton",
                    command=self.expliquer).pack(side="left", padx=(14, 2))
 
+    # Le widget Text est en lecture seule et permet d'afficher des messages sur plusieurs lignes.
     def _creer_zone_resultats(self):
         cadre = ttk.LabelFrame(self, text=" RÉSULTATS ", padding=6)
         cadre.pack(fill="both", expand=True)
@@ -232,6 +252,7 @@ class Application(tk.Tk):
         barre.grid(row=0, column=1, sticky="ns")
 
         # Styles de texte pour les résultats
+        # Les tags définissent des styles réutilisés par la fonction ecrire().
         self.resultats.tag_configure("titre", font=("Consolas", 11, "bold"))
         self.resultats.tag_configure("ok", foreground="#1b7f3b",
                                      font=("Consolas", 11, "bold"))
@@ -242,6 +263,7 @@ class Application(tk.Tk):
     # ------------------------------------------------------------------
     # Utilitaires d'affichage
     # ------------------------------------------------------------------
+    # Recréer les listes avec des numéros à partir de 1 et des formules lisibles.
     def rafraichir(self):
         """Reconstruit les deux listes à partir de self.theorie."""
         self.liste_w.delete(0, "end")
@@ -252,16 +274,20 @@ class Application(tk.Tk):
         for i, d in enumerate(self.theorie.D, start=1):
             self.liste_d.insert("end", f"d{i} : {texte_defaut(d)}")
 
+    # Toute modification de W ou D invalide les extensions calculées auparavant.
+    # None signifie « pas de calcul courant » alors que [] signifie « zéro extension ».
     def _theorie_modifiee(self):
         """Appelée quand W ou D change : les extensions ne sont plus valides."""
         self.extensions = None
         self.rafraichir()
 
+    # Pour effacer le Text désactivé, on l'active temporairement puis on le rebloque.
     def effacer_resultats(self):
         self.resultats.configure(state="normal")
         self.resultats.delete("1.0", "end")
         self.resultats.configure(state="disabled")
 
+    # Insérer le texte avec son style facultatif, puis défiler vers le message ajouté.
     def ecrire(self, texte, tag=None):
         """Ajoute du texte à la zone des résultats."""
         self.resultats.configure(state="normal")
@@ -272,9 +298,11 @@ class Application(tk.Tk):
         self.resultats.configure(state="disabled")
         self.resultats.see("end")
 
+    # Afficher une fenêtre d'erreur commune à toutes les actions.
     def erreur(self, titre, message):
         messagebox.showerror(titre, message)
 
+    # curselection retourne un indice de ligne ou rien si la liste n'a pas de sélection.
     def _indice_selection(self, liste, nom):
         """Renvoie l'indice sélectionné dans la liste, ou None (+ message)."""
         selection = liste.curselection()
@@ -287,6 +315,8 @@ class Application(tk.Tk):
     # ------------------------------------------------------------------
     # Monde W
     # ------------------------------------------------------------------
+    # Lire UNE formule et laisser Theorie.ajouter_formule vérifier sa syntaxe.
+    # Une saisie comme « P,P->Q » n'est pas acceptée : il faut ajouter chaque formule séparément.
     def ajouter_formule(self):
         texte = self.entree_formule.get()
         try:
@@ -297,12 +327,15 @@ class Application(tk.Tk):
         self.entree_formule.delete(0, "end")
         self._theorie_modifiee()
 
+    # Supprimer la formule sélectionnée puis forcer un nouveau calcul des extensions.
     def supprimer_formule(self):
         i = self._indice_selection(self.liste_w, "une formule")
         if i is not None:
             del self.theorie.W[i]
             self._theorie_modifiee()
 
+    # Tester W via raisonnement.py ; un conflit minimal par inclusion est surligné.
+    # Le calcul d'incohérence n'est pas implémenté dans l'interface.
     def verifier_coherence(self):
         self.rafraichir()  # enlève les anciens surlignages
         self.effacer_resultats()
@@ -315,6 +348,7 @@ class Application(tk.Tk):
         self.ecrire("W est incohérent. ", "ko")
         self.ecrire("Sous-ensemble incohérent :\n")
 
+        # Éviter de surligner deux fois une même ligne si W contient des doublons.
         deja_pris = set()
         for formule in incoherentes:
             self.ecrire(f"   • {afficher_formule(formule)}\n")
@@ -328,6 +362,7 @@ class Application(tk.Tk):
     # ------------------------------------------------------------------
     # Défauts D
     # ------------------------------------------------------------------
+    # Former « prérequis : justifications / conséquent » à partir des trois champs.
     def ajouter_defaut(self):
         pre = self.entree_pre.get().strip()
         just = self.entree_just.get().strip()
@@ -341,6 +376,7 @@ class Application(tk.Tk):
             return
 
         # Avertissement (le défaut reste ajouté) : justification incohérente
+        # Une justification incohérente provoque un avertissement sans supprimer le défaut.
         avertissements = avertissements_defaut(defaut)
         if avertissements:
             messagebox.showwarning(
@@ -352,6 +388,7 @@ class Application(tk.Tk):
             entree.delete(0, "end")
         self._theorie_modifiee()
 
+    # Supprimer le défaut choisi et invalider les extensions mémorisées.
     def supprimer_defaut(self):
         i = self._indice_selection(self.liste_d, "un défaut")
         if i is not None:
@@ -361,6 +398,8 @@ class Application(tk.Tk):
     # ------------------------------------------------------------------
     # Extensions, conséquences sceptiques et crédules
     # ------------------------------------------------------------------
+    # L'interface appelle le moteur en indiquant le calcul par un curseur d'attente.
+    # Le traitement reste synchrone : une théorie très complexe peut ralentir la fenêtre.
     def _calculer_extensions(self):
         """Appelle generer_extensions ; renvoie None en cas d'erreur."""
         self.config(cursor="watch")
@@ -373,15 +412,19 @@ class Application(tk.Tk):
         finally:
             self.config(cursor="")
 
+    # Réutiliser le résultat calculé ou chargé ; si None, le calculer.
+    # La liste vide [] représente un calcul valide avec aucune extension.
     def _extensions_courantes(self):
         """Extensions déjà connues, sinon on les calcule (None si erreur)."""
         if self.extensions is None:
             self.extensions = self._calculer_extensions()
         return self.extensions
 
+    # Transformer [1, 3] en « d1, d3 » pour les messages.
     def _noms_defauts(self, numeros):
         return ", ".join(f"d{n}" for n in numeros) if numeros else "aucun"
 
+    # Action du bouton Générer : calculer, conserver et afficher les extensions.
     def generer(self):
         self.rafraichir()
         extensions = self._calculer_extensions()
@@ -392,6 +435,8 @@ class Application(tk.Tk):
         self.effacer_resultats()
         self.afficher_extensions(extensions)
 
+    # Afficher une base finie B sous la forme Th(B), ses littéraux et ses défauts.
+    # litteraux() déduit les conclusions : elles peuvent ne pas figurer littéralement dans B.
     def afficher_extensions(self, extensions):
         """Affiche le nombre d'extensions puis chacune d'elles."""
         if not extensions:
@@ -412,9 +457,12 @@ class Application(tk.Tk):
             self.ecrire("    défauts appliqués : "
                         f"{self._noms_defauts(ext.defauts_appliques)}\n")
 
+    # Afficher pourquoi chaque défaut a été appliqué ou bloqué dans chaque extension.
+    # La fonction externe expliquer_extension produit les raisons : l'interface ne raisonne pas.
     def expliquer(self):
         """Étape 6 : pour chaque extension, pourquoi chaque défaut est
         appliqué ou non."""
+        # Calculer les extensions au besoin, même si l'utilisateur n'a pas cliqué sur Générer.
         extensions = self._extensions_courantes()
         if extensions is None:
             return
@@ -434,6 +482,7 @@ class Application(tk.Tk):
 
             if not self.theorie.D:
                 self.ecrire("   (aucun défaut dans la théorie)\n", "gris")
+            # Mettre en forme l'état du défaut et chacune des justifications fournies.
             for ex in expliquer_extension(self.theorie, ext, nom):
                 signe, tag = ("✔", "ok") if ex.applique else ("✘", "ko")
                 etat = "appliqué" if ex.applique else "non appliqué"
@@ -445,6 +494,8 @@ class Application(tk.Tk):
 
         self.resultats.see("1.0")  # on revient au début de l'explication
 
+    # Code partagé par Sceptique et Crédule : le paramètre fonction choisit le type de test.
+    # Le résultat dépend d'une déduction logique et non d'une simple recherche de texte.
     def _tester_consequence(self, fonction, nom):
         """Code commun aux boutons Sceptique ? et Crédule ?"""
         texte = self.entree_phi.get()
@@ -454,12 +505,14 @@ class Application(tk.Tk):
             self.erreur("Formule φ incorrecte", str(e))
             return
 
+        # Calculer les extensions au besoin, même si l'utilisateur n'a pas cliqué sur Générer.
         extensions = self._extensions_courantes()
         if extensions is None:
             return
 
         self.effacer_resultats()
         phi_texte = afficher_formule(phi)
+        # La réponse vaut True, False ou None si aucune extension n'existe.
         reponse = fonction(extensions, phi)
 
         if reponse is None:  # aucune extension
@@ -471,6 +524,7 @@ class Application(tk.Tk):
         self.ecrire(f"{phi_texte} est une conséquence {nom} ? ", "titre")
         self.ecrire("OUI\n" if reponse else "NON\n", "ok" if reponse else "ko")
 
+        # Identifier précisément les indices des extensions dans lesquelles φ est déductible.
         contenant = extensions_contenant(extensions, phi)
         if contenant:
             liste = ", ".join(f"E{i}" for i in contenant)
@@ -480,15 +534,18 @@ class Application(tk.Tk):
             self.ecrire(f"Aucune des {len(extensions)} extension(s) "
                         f"ne contient {phi_texte}.\n")
 
+    # La conséquence sceptique doit être vraie dans TOUTES les extensions.
     def tester_sceptique(self):
         self._tester_consequence(sceptique, "sceptique")
 
+    # La conséquence crédule doit être vraie dans AU MOINS UNE extension.
     def tester_credule(self):
         self._tester_consequence(credule, "crédule")
 
     # ------------------------------------------------------------------
     # Fichiers et exemples
     # ------------------------------------------------------------------
+    # Demander confirmation avant d'effacer une théorie non vide.
     def nouveau(self):
         if (self.theorie.W or self.theorie.D) and not messagebox.askyesno(
                 "Nouvelle théorie",
@@ -498,6 +555,7 @@ class Application(tk.Tk):
         self.effacer_resultats()
         self._theorie_modifiee()
 
+    # Ouvrir un JSON : récupérer W, D, puis les extensions qui y sont éventuellement sauvegardées.
     def ouvrir(self):
         chemin = filedialog.askopenfilename(
             title="Ouvrir une théorie",
@@ -505,6 +563,7 @@ class Application(tk.Tk):
         if not chemin:
             return
         try:
+            # Le contrôle du contenu JSON et la reconstruction des formules ont lieu dans defauts.py.
             self.theorie = Theorie.charger(chemin)
         except (ValueError, json.JSONDecodeError) as e:
             self.erreur("Fichier invalide", str(e))
@@ -518,6 +577,8 @@ class Application(tk.Tk):
                     f"{len(self.theorie.D)} défaut(s).\n", "gris")
 
         # Extensions enregistrées dans le fichier : on les retrouve
+        # Les données JSON sont reconverties en objets Extension par extensions_depuis_donnees().
+        # La liste vide [] représente une sauvegarde sans extension valide.
         if self.theorie.extensions_sauvegardees is not None:
             try:
                 self.extensions = extensions_depuis_donnees(
@@ -533,6 +594,7 @@ class Application(tk.Tk):
             self.ecrire("Le fichier ne contient pas d'extensions "
                         "(cliquez sur « Générer les extensions »).\n", "gris")
 
+    # Sauvegarder les connaissances, les défauts et les extensions au format JSON.
     def enregistrer(self):
         chemin = filedialog.asksaveasfilename(
             title="Enregistrer la théorie", defaultextension=".json",
@@ -540,6 +602,7 @@ class Application(tk.Tk):
         if not chemin:
             return
         # Les extensions sont enregistrées avec W et D (calculées si besoin)
+        # Calculer les extensions au besoin, même si l'utilisateur n'a pas cliqué sur Générer.
         extensions = self._extensions_courantes()
         donnees = (extensions_vers_donnees(extensions)
                    if extensions is not None else None)
@@ -557,6 +620,7 @@ class Application(tk.Tk):
             self.ecrire(f"{len(donnees)} extension(s) enregistrée(s).\n",
                         "gris")
 
+    # Créer d'abord une théorie temporaire avant de remplacer celle de l'utilisateur.
     def charger_exemple(self, nom):
         formules, defauts = EXEMPLES[nom]
         theorie = Theorie()
