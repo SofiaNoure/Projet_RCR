@@ -245,8 +245,8 @@ verifier("contredite" in ex2[0].raisons[0] and "E2 démontre ¬B" in ex2[0].rais
          "E2 : d1 bloqué car la justification B est contredite par ¬B")
 verifier(any("prérequis A démontré" in r for r in ex1[0].raisons),
          "défaut appliqué : prérequis démontré")
-verifier(any("conséquent C est ajouté" in r for r in ex1[0].raisons),
-         "défaut appliqué : conséquent ajouté")
+verifier(any("conséquent C est obtenu" in r for r in ex1[0].raisons),
+         "défaut appliqué : conséquent obtenu dans l’extension")
 verifier([x.applique for x in ex1] == [n in E[0].defauts_appliques for n in (1, 2)],
          "cohérent avec defauts_appliques")
 
@@ -288,13 +288,21 @@ T = theorie(["A"], [])
 ex = expliquer_extension(T, generer_extensions(T)[0], "E1")
 verifier(ex == [], "aucun défaut : aucune explication")
 
-print("--- Limite du nombre de défauts ---")
-T = theorie([], [f": P{i} / Q{i}" for i in range(13)])
-try:
-    generer_extensions(T)
-    verifier(False, "13 défauts : ValueError attendue")
-except ValueError:
-    verifier(True, "13 défauts : ValueError levée")
+print("--- Plus de 12 défauts : aucune limite artificielle ---")
+# 20 défauts indépendants : on doit retrouver leurs 20 conséquents
+# dans une seule extension, sans explorer toutes les permutations.
+T = theorie([], [f": P{i} / Q{i}" for i in range(20)])
+E = generer_extensions(T)
+verifier(len(E) == 1, "20 défauts : une seule extension")
+verifier(len(E[0].defauts_appliques) == 20,
+         "20 défauts : tous les défauts ont été appliqués")
+verifier(all(consequence(E[0].base, f(f"Q{i}")) for i in range(20)),
+         "20 défauts : tous les conséquents sont déductibles")
+
+# Contrôler que les défauts contradictoires restent séparés.
+T = theorie(["A"], ["A : B / C", "A : ~C / ~B"])
+E = generer_extensions(T)
+verifier(len(E) == 2, "défauts contradictoires : deux extensions maintenues")
 
 print()
 print("Tous les tests réussis." if echecs == 0
