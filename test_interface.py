@@ -5,6 +5,7 @@ import interface
 from interface import Application
 
 msgs = []
+echecs = 0
 for nom in ("showerror", "showwarning", "showinfo"):
     setattr(messagebox, nom, lambda t, m, _n=nom: msgs.append((_n, t, m)))
 messagebox.askyesno = lambda *a, **k: True
@@ -12,8 +13,12 @@ messagebox.askyesno = lambda *a, **k: True
 app = Application()
 def res(): return app.resultats.get("1.0", "end").strip()
 def ok(cond, label):
+    """Afficher le résultat et retenir un échec pour le code de sortie."""
+    global echecs
     print(("PASS " if cond else "FAIL ") + label)
-    if not cond: print("   ->", res(), msgs[-1:] )
+    if not cond:
+        echecs += 1
+        print("   ->", res(), msgs[-1:])
 
 # 1. exemple de l'énoncé : 1 extension, littéraux o, v, ¬p
 app.charger_exemple("Exemple de l'énoncé"); app.generer()
@@ -143,4 +148,6 @@ for nom in interface.EXEMPLES:
 ok(True, "tous les exemples")
 
 app.destroy()
-print("Tests termines.")
+print("Tous les tests réussis." if echecs == 0
+      else f"{echecs} test(s) en échec.")
+sys.exit(1 if echecs else 0)
