@@ -99,71 +99,101 @@ def fermeture_relative(theorie, candidat):
 # -----------------------------------------------------------------------------
 # 5. Construire puis valider les extensions
 # -----------------------------------------------------------------------------
-def generer_extensions(theorie, maximum_defauts=12):
-    # Le nombre de défauts est limité pour éviter une exploration trop coûteuse.
-    if len(theorie.D) > maximum_defauts:
-        raise ValueError("Trop de défauts pour cette version.")
+def generer_extensions(theorie):
+    """Trouver toutes les extensions, sans limite artificielle de défauts.
 
-    extensions = []  # Extensions valides trouvées jusqu'à présent.
+    Une théorie complexe peut néanmoins nécessiter un temps de calcul élevé :
+    le nombre de chemins possibles est potentiellement exponentiel.
+    """
+    extensions = []
 
-    def explorer(base, appliques):
-        """Explorer récursivement les choix possibles depuis une base."""
-
-        # Étape 1 : chercher les défauts non encore utilisés et applicables.
-        choix = []
+    # Optimisation sûre : repérer les défauts dont les justifications
+    # resteraient cohérentes même si TOUS les conséquents étaient ajoutés.
+    # Ces défauts ne pourront pas être bloqués par des applications futures.
+    # Si tous les conséquents sont contradictoires entre eux, on n'utilise
+    # pas cette optimisation ; l'exploration normale reste correcte.
+    tous_les_consequents = list(theorie.W) + [
+        d.consequent for d in theorie.D
+    ]
+    defauts_stables = set()
+    if est_coherent(tous_les_consequents):
         for numero, defaut in enumerate(theorie.D, start=1):
-            if numero not in appliques and applicable(defaut, base):
-                choix.append(numero)
-
-        # Étape 2 : si plusieurs défauts sont possibles, essayer chaque choix.
-        # Cela explore plusieurs ordres d'application, sans en privilégier un.
-        if choix:
-            for numero in choix:
-                defaut = theorie.D[numero - 1]  # Indices de liste dès 0.
-                nouvelle_base = list(base)      # Copie pour ce chemin.
-
-                # Le conséquent n'est ajouté que s'il apporte une nouvelle
-                # conséquence logique à la base de ce chemin.
-                if not consequence(nouvelle_base, defaut.consequent):
-                    nouvelle_base.append(defaut.consequent)
-
-                # Continuer en conservant le numéro du défaut utilisé.
-                explorer(nouvelle_base, appliques + [numero])
-
-            # Tous les chemins issus de cette étape ont été explorés.
-            return
-
-        # Étape 3 : aucun autre défaut n'est actuellement applicable.
-        # Vérifier que les justifications des défauts déjà utilisés restent
-        # compatibles avec la base FINALE (elles ont pu être contredites après).
-        for numero in appliques:
-            defaut = theorie.D[numero - 1]
-            if not all(
-                est_coherent(base + [j])
+            if all(
+                est_coherent(tous_les_consequents + [j])
                 for j in defaut.justifications
             ):
-                return  # Chemin invalide : on rejette ce candidat.
+                defauts_stables.add(numero)
 
-        # Étape 4 : vérifier le point fixe de Reiter : Γ(E) = E.
-        # La fonction retourne aussi les défauts retenus ; '_' ignore ce retour.
+    # Pile explicite : même exploration que la fonction récursive explorer(),
+    # mais sans atteindre la limite de récursion de Python.
+    # Chaque état contient la base provisoire et les numéros déjà appliqués.
+    pile = [(list(theorie.W), [])]
+    etats_visites = set()
+
+    while pile:
+        base, appliques = pile.pop()
+        ensemble_appliques = frozenset(appliques)
+
+        # Appliquer les mêmes défauts dans un autre ordre donne les mêmes
+        # conséquences logiques : inutile de réexplorer ce même état.
+        if ensemble_appliques in etats_visites:
+            continue
+        etats_visites.add(ensemble_appliques)
+
+        # Rechercher les défauts applicables à la base actuelle.
+        choix = [
+            numero
+            for numero, defaut in enumerate(theorie.D, start=1)
+            if numero not in ensemble_appliques and applicable(defaut, base)
+        ]
+
+        # Les défauts "stables" actuellement applicables peuvent être
+        # ajoutés ensemble : aucun conséquent futur ne contredira leurs
+        # justifications. On évite ainsi d'explorer toutes leurs permutations.
+        garantis = [numero for numero in choix if numero in defauts_stables]
+        if garantis:
+            nouvelle_base = list(base)
+            for numero in garantis:
+                consequent = theorie.D[numero - 1].consequent
+                if not consequence(nouvelle_base, consequent):
+                    nouvelle_base.append(consequent)
+
+            pile.append((nouvelle_base, appliques + garantis))
+            continue
+
+        if choix:
+            # Pour les défauts qui peuvent être bloqués ultérieurement,
+            # essayer séparément chaque choix : l'ordre peut être important.
+            # reversed() conserve l'ordre habituel d'exploration (d1 d'abord).
+            for numero in reversed(choix):
+                defaut = theorie.D[numero - 1]
+                nouvelle_base = list(base)
+                if not consequence(nouvelle_base, defaut.consequent):
+                    nouvelle_base.append(defaut.consequent)
+                pile.append((nouvelle_base, appliques + [numero]))
+            continue
+
+        # Aucun autre défaut applicable : contrôler les justifications
+        # des défauts utilisés face à la base FINALE.
+        if any(
+            not all(
+                est_coherent(base + [j])
+                for j in theorie.D[numero - 1].justifications
+            )
+            for numero in appliques
+        ):
+            continue
+
+        # Condition formelle de Reiter : le candidat doit être un point fixe.
         fermeture, _ = fermeture_relative(theorie, base)
-
-        # On compare les CONSÉQUENCES LOGIQUES, pas les listes mot pour mot.
         if not equivalentes(fermeture, base):
-            return  # Ce candidat n'est pas une extension valide.
+            continue
 
-        # Étape 5 : ne pas conserver deux extensions logiquement équivalentes.
+        # Conserver une seule fois les extensions logiquement équivalentes.
         if not any(equivalentes(base, e.base) for e in extensions):
             extensions.append(
-                Extension(
-                    base=list(base),
-                    defauts_appliques=list(appliques)
-                )
+                Extension(base=list(base), defauts_appliques=list(appliques))
             )
-
-    # Départ : uniquement les connaissances certaines W.
-    # La base finie W représente initialement Th(W) par ses conséquences.
-    explorer(list(theorie.W), [])
 
     return extensions
 
