@@ -212,47 +212,60 @@ def lire_formule(texte):
 
 # Fonction 2 : afficher une formule
 # Cette fonction parcourt l'objet SymPy produit par la lecture.
-def afficher_formule(formule):
-    # Les constantes logiques reçoivent un libellé en français.
+def afficher_formule(formule, mode="affichage"):
+    # Deux formats possibles :
+    # affichage : symboles mathématiques pour l'utilisateur
+    # sauvegarde : symboles compatibles avec lire_formule()
+    if mode not in ("affichage", "sauvegarde"):
+        raise ValueError("Mode d'affichage inconnu.")
+
     if formule is true:
-        return "Vrai"
+        return "true" if mode == "sauvegarde" else "Vrai"
 
     if formule is false:
-        return "Faux"
+        return "false" if mode == "sauvegarde" else "Faux"
 
-    # Un symbole s'affiche directement sous son nom, par exemple P ou P(x).
     if isinstance(formule, Symbol):
         return str(formule)
 
-    # func indique l'opérateur de la sous-expression et args contient ses
-    # opérandes. Pour Not, on ajoute ¬ devant l'affichage du seul opérande.
+    # Traiter la négation en conservant le mode choisi.
     if formule.func == Not:
-        return "¬" + afficher_formule(formule.args[0])
+        contenu = afficher_formule(formule.args[0], mode)
 
-    # Le dictionnaire associe les autres opérateurs pris en charge à
-    # leur signe d'affichage.
-    connecteurs = {
-        And: " ∧ ",
-        Or: " ∨ ",
-        Implies: " → ",
-        Equivalent: " ↔ "
-    }
+        if mode == "sauvegarde":
+            return "~(" + contenu + ")"
+
+        return "¬" + contenu
+
+    # Sélectionner les connecteurs selon le mode.
+    if mode == "sauvegarde":
+        connecteurs = {
+            And: " & ",
+            Or: " | ",
+            Implies: " -> ",
+            Equivalent: " <-> "
+        }
+    else:
+        connecteurs = {
+            And: " ∧ ",
+            Or: " ∨ ",
+            Implies: " → ",
+            Equivalent: " ↔ "
+        }
 
     if formule.func in connecteurs:
         symbole = connecteurs[formule.func]
 
-        # L'appel récursif affiche chaque opérande. Dans Or(P, Not(Q)),
-        # il produit les parties P et ¬Q.
+        # Conversion récursive des arguments.
         parties = [
-            afficher_formule(arg)
+            afficher_formule(arg, mode)
             for arg in formule.args
         ]
 
-        # join insère le connecteur entre les parties. Les parenthèses
-        # délimitent le groupe complet, comme dans (P ∨ ¬Q).
         return "(" + symbole.join(parties) + ")"
 
     raise TypeError("Type de formule non reconnu.")
+
 
 
 def variables(formules):
